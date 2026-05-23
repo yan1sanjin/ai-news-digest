@@ -105,13 +105,13 @@ ai-news-digest path=/path/to/custom.md
 
 ## 一、今日要闻 (5-8 条)
 
-### [Original English Title](https://...)
+### [Original English Title](https://...) 🟢
 **[中文译]**:中文翻译标题
 **来源**:Anthropic News
 **摘要**:1-2 句中文摘要
 **为什么值得关注**:1 句中文 (可选)
 
-### [中文原标题](https://...)
+### [中文原标题](https://...) 🟢
 **来源**:量子位
 **摘要**:1-2 句中文摘要
 
@@ -136,7 +136,7 @@ ai-news-digest path=/path/to/custom.md
 
 跟一般的 AI 资讯聚合工具相比, 这个 skill 在 v3.1 已经踩过的坑里沉淀了几条:
 
-- **信源可信度评级 (🟢🟡🔴)** + 域名黑白名单, 反 SEO 投毒和 AI 生成虚假新闻
+- **信源可信度评级 (🟢🟡)** + 域名黑白名单, 反 SEO 投毒, **每条新闻末尾显式标 emoji, 用户一眼看可信度**和 AI 生成虚假新闻
 - **T+0 直抓 + T+1 WebSearch 双引擎**, 不只是搜一搜了事
 - **Tier 1 必查 + Tier 3 轮换池**, 不无脑塞 N 个源, 按当天热点选源
 - **Fail-safe 阈值**: Tier 1 < 2 个源成功直接 abort, 避免输出"全中文的全球 AI 日报"这种劣质结果
