@@ -30,23 +30,28 @@ curl -fsSL https://raw.githubusercontent.com/yan1sanjin/ai-news-digest/main/inst
 powershell -c "irm https://raw.githubusercontent.com/yan1sanjin/ai-news-digest/main/install.ps1 | iex"
 ```
 
-### ClawHub 用户 (skill-atlas)
+### ClawHub 用户
 
-**macOS / Linux**:
+已上架到 [ClawHub Skill marketplace](https://clawhub.ai/skills/ai-news-digest-cn) (slug: **ai-news-digest-cn**, owner: yan1sanjin, license: MIT-0, moderation: CLEAN)。
+
+**用 `openclaw` CLI 装** (跨平台 npm, 推荐):
 ```bash
-# 先装 SkillAtlas CLI (一次性)
-curl -fsSL https://unpkg.com/skill-atlas-cli/install.sh | bash
-# 装 skill
-skill-atlas install ai-news-digest
+npm install -g openclaw
+openclaw skills install ai-news-digest-cn
 ```
 
-**Windows (PowerShell)**:
-```powershell
-# 先装 SkillAtlas CLI (一次性)
+**或用 `skill-atlas-cli` 装** (ClawHub 中文版 CLI / 虾小宝):
+```bash
+# macOS / Linux
+curl -fsSL https://unpkg.com/skill-atlas-cli/install.sh | bash
+skill-atlas install ai-news-digest-cn
+
+# Windows (PowerShell)
 powershell -c "irm https://unpkg.com/skill-atlas-cli/install.ps1 | iex"
-# 装 skill
-skill-atlas install ai-news-digest
+skill-atlas install ai-news-digest-cn
 ```
+
+两个 CLI 等价, 都从 ClawHub registry 装同一份 skill。
 
 ### 多 agent 用户 (Cursor / Codex / Gemini CLI 等)
 
