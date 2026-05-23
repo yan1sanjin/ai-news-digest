@@ -1,0 +1,167 @@
+# ai-news-digest
+
+A cross-runtime agent skill that fetches daily AI news from major sources and generates a Chinese-friendly markdown digest.
+
+每天 30 秒, 让你的 AI agent (Claude Code / Cursor / Codex / OpenClaw / Gemini CLI) 跑当天主流 AI 资讯的中文日报。
+
+---
+
+## What it does
+
+抓取 8 个主流 AI 资讯源 (HN / Anthropic / OpenAI / Latent Space / HuggingFace 英文 + 量子位 / 机器之心 / 36 氪 中文) + 2 个轮换池源, 经过信源可信度评级 (🟢🟡🔴) + 反 SEO 投毒过滤, 翻译英文标题, 提炼 3-5 个趋势主题, 输出一份完整的中文 markdown 日报到本地。
+
+**它不是 SaaS**, 是个跑在你自己 agent 客户端里的本地 skill — 用宿主 agent 官方的 WebFetch 工具抓数据, 不自建爬虫, 不存数据到第三方服务器。
+
+---
+
+## Install
+
+任选一种安装方式:
+
+### Claude Code 用户 (一条命令直装)
+
+**macOS / Linux**:
+```bash
+curl -fsSL https://raw.githubusercontent.com/yan1sanjin/ai-news-digest/main/install.sh | bash
+```
+
+**Windows (PowerShell)**:
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/yan1sanjin/ai-news-digest/main/install.ps1 | iex"
+```
+
+### ClawHub 用户 (skill-atlas)
+
+**macOS / Linux**:
+```bash
+# 先装 SkillAtlas CLI (一次性)
+curl -fsSL https://unpkg.com/skill-atlas-cli/install.sh | bash
+# 装 skill
+skill-atlas install ai-news-digest
+```
+
+**Windows (PowerShell)**:
+```powershell
+# 先装 SkillAtlas CLI (一次性)
+powershell -c "irm https://unpkg.com/skill-atlas-cli/install.ps1 | iex"
+# 装 skill
+skill-atlas install ai-news-digest
+```
+
+### 多 agent 用户 (Cursor / Codex / Gemini CLI 等)
+
+跨平台 (Node.js, macOS / Linux / Windows 都能跑):
+```bash
+npx agent-skills-cli add ai-news-digest --agent <claude-code|cursor|codex|gemini>
+```
+
+### 手动安装
+
+复制 `SKILL.md` 到对应 agent 的 skills 目录:
+
+**Claude Code**:
+- macOS / Linux: `~/.claude/skills/ai-news-digest/SKILL.md`
+- Windows: `%USERPROFILE%\.claude\skills\ai-news-digest\SKILL.md`
+
+**OpenClaw**:
+- macOS / Linux: `~/.openclaw/skills/ai-news-digest/SKILL.md`
+- Windows: `%USERPROFILE%\.openclaw\skills\ai-news-digest\SKILL.md`
+
+**Cursor / Codex / Gemini CLI**: 各自的 skills 目录 (参考各 agent 文档)
+
+---
+
+## Usage
+
+在你的 agent 里说:
+
+```
+生成今日 AI 日报
+```
+
+也支持这些等价说法:
+```
+今天有什么 AI 新闻
+用 ai-news-digest 跑一下今天的资讯
+ai-news-digest path=/path/to/custom.md
+```
+
+输出到:
+- macOS / Linux: `~/Desktop/ai-news/YYYY-MM-DD.md`
+- Windows: `%USERPROFILE%\Desktop\ai-news\YYYY-MM-DD.md`
+
+可在 SKILL.md 顶部改默认路径, 或运行时用 `path=` 覆盖。
+
+---
+
+## Example output
+
+```markdown
+# AI 资讯日报 · 2026-05-23
+
+> 生成时间:2026-05-23 09:30
+> 资讯源:HN / Anthropic / OpenAI / Latent Space / HuggingFace / 量子位 / 机器之心 / 36 氪 + 轮换 Google AI Blog / TechCrunch AI
+> 共 12 条精选
+
+## 一、今日要闻 (5-8 条)
+
+### [Original English Title](https://...)
+**[中文译]**:中文翻译标题
+**来源**:Anthropic News
+**摘要**:1-2 句中文摘要
+**为什么值得关注**:1 句中文 (可选)
+
+### [中文原标题](https://...)
+**来源**:量子位
+**摘要**:1-2 句中文摘要
+
+## 二、技术热点 (3-5 条)
+[同上格式]
+
+## 三、行业动态 (3-5 条)
+[同上格式]
+
+## 四、今日趋势总结
+
+- **主题 1 · 简短主题词**:一句话中文归纳跨条目的模式
+- **主题 2 · 简短主题词**:同上
+- **主题 3 · 简短主题词**:同上
+```
+
+这是输出 schema (固定结构), 实际日报会填进当天真实抓到的新闻。`examples/` 目录待补充真实样例。
+
+---
+
+## Why this skill is different
+
+跟一般的 AI 资讯聚合工具相比, 这个 skill 在 v3.1 已经踩过的坑里沉淀了几条:
+
+- **信源可信度评级 (🟢🟡🔴)** + 域名黑白名单, 反 SEO 投毒和 AI 生成虚假新闻
+- **T+0 直抓 + T+1 WebSearch 双引擎**, 不只是搜一搜了事
+- **Tier 1 必查 + Tier 3 轮换池**, 不无脑塞 N 个源, 按当天热点选源
+- **Fail-safe 阈值**: Tier 1 < 2 个源成功直接 abort, 避免输出"全中文的全球 AI 日报"这种劣质结果
+- **跨 runtime**: 同一份 SKILL.md 在 Claude Code / Cursor / Codex / OpenClaw / Gemini CLI 都能用
+
+---
+
+## Configuration
+
+默认行为:
+- **输出路径**:
+  - macOS / Linux: `~/Desktop/ai-news/YYYY-MM-DD.md`
+  - Windows: `%USERPROFILE%\Desktop\ai-news\YYYY-MM-DD.md`
+- **时区**: 运行机器本地时区
+- **抓取源**: 5 个英文 Tier 1 + 3 个中文 Tier 2 + 2 个 Tier 3 轮换
+- **输出条数**: 10-15 条精选 + 3-5 个趋势主题
+
+修改默认: 直接改 `SKILL.md` 对应字段 (Step 1 路径 / Step 2-3 源列表 / Step 6 输出条数)。SKILL.md 里 Unix / Windows 两套命令并列, 你的 agent 会根据当前 OS 选合适的。
+
+---
+
+## License
+
+MIT © 2026 sanjin
+
+---
+
+Built by sanjin · AI PM · [GitHub](https://github.com/yan1sanjin)
