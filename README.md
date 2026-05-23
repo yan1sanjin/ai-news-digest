@@ -86,9 +86,33 @@ npx agent-skills-cli add ai-news-digest --agent <claude-code|cursor|codex|gemini
 ai-news-digest path=/path/to/custom.md
 ```
 
-输出到:
+### 同日重跑
+
+今天已经跑过一次, 想再跑一次时:
+
+**Claude Code / Cursor 等交互式 agent**: skill 会自动问你 A 更新累积 / B 新建副本 / C 跳过, 回答即可。
+
+**Codex / cron / 后台 API 等非交互场景**: 默认走 A (更新累积), 旧版本归档到 `.archive/`, 同时生成最新累积版本。
+
+也可以**显式带参数跳过询问**:
+```
+生成今日 AI 日报 mode=update     # 更新累积 (覆盖 + 旧版归档)
+生成今日 AI 日报 mode=snapshot   # 新建独立副本 YYYY-MM-DD-second.md
+生成今日 AI 日报 mode=skip       # 跳过本次, 看上次的就行
+```
+
+或者用自然语言, 不用记参数名:
+```
+生成今日 AI 日报, 不要覆盖之前的     # 等价 mode=snapshot
+今天 AI 新闻, 合并到现有日报里        # 等价 mode=update
+ai-news-digest, 看看上次的就行       # 等价 mode=skip
+```
+
+### 输出路径
+
 - macOS / Linux: `~/Desktop/ai-news/YYYY-MM-DD.md`
 - Windows: `%USERPROFILE%\Desktop\ai-news\YYYY-MM-DD.md`
+- 归档目录 (mode=update 时旧版本去这): `.archive/YYYY-MM-DD-HHMMSS.md`
 
 可在 SKILL.md 顶部改默认路径, 或运行时用 `path=` 覆盖。
 
@@ -141,6 +165,7 @@ ai-news-digest path=/path/to/custom.md
 - **Tier 1 必查 + Tier 3 轮换池**, 不无脑塞 N 个源, 按当天热点选源
 - **Fail-safe 阈值**: Tier 1 < 2 个源成功直接 abort, 避免输出"全中文的全球 AI 日报"这种劣质结果
 - **跨 runtime**: 同一份 SKILL.md 在 Claude Code / Cursor / Codex / OpenClaw / Gemini CLI 都能用
+- **同日重跑智能处理**: 交互式 agent 问用户 (A 更新累积 / B 新建副本 / C 跳过), 非交互 agent 默认更新累积, 旧版本自动归档不丢
 
 ---
 

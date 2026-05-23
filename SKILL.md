@@ -23,13 +23,29 @@ WebSearch 的二手报道可能有 3 类污染:
 
 ---
 
-## Step 1: Determine output path
+## Step 1: Parse parameters & determine output path
 
-Default path: `~/Desktop/ai-news/YYYY-MM-DD.md`,使用今天的日期(YYYY-MM-DD 格式)。
+### 1.1 解析用户调用 prompt 里的可选参数
 
-如果用户在调用时提供了 `path=` 参数,使用用户指定路径。
+**`path=<路径>`**: 覆盖默认输出位置
 
-如果该路径已存在文件,改用 `YYYY-MM-DD-second.md`(再有则 `-third.md`),**永不覆盖**。
+**`mode=<模式>`**: 同日文件冲突时的行为, 详见 Step 1.6:
+- `mode=update` (别名: `u` / `合并` / `merge`): 更新累积模式 (A)
+- `mode=snapshot` (别名: `s` / `快照`): 新建独立副本 (B)
+- `mode=skip`: 跳过本次, 不抓取
+
+**自然语言推断** (用户没显式带 `mode=` 但表达了意图也能识别):
+- "不要覆盖" / "另存一份" / "保留原版" / "保留之前的" → 等价 `mode=snapshot`
+- "更新到最新" / "合并今天新增" / "拿最新版本" → 等价 `mode=update`
+- "看看上次的就行" / "别跑" / "我先不抓" → 等价 `mode=skip`
+
+### 1.2 确定输出路径
+
+Default path: `~/Desktop/ai-news/YYYY-MM-DD.md`,使用今天的日期 (YYYY-MM-DD 格式)。
+
+如果用户用 `path=` 指定, 使用用户路径。
+
+**如果目标路径已存在文件 → 进入 Step 1.6 同日冲突处理, 不要直接覆盖也不要直接 -second.md**。
 
 **确保父目录存在** (无论是默认路径还是 `path=` 自定义路径, 父目录不存在都先创建)。先判断当前 OS 用对应命令:
 
@@ -70,13 +86,80 @@ Get-Date -Format "yyyy-MM-dd"
 
 ---
 
+## Step 1.6: Same-day file conflict handling
+
+(Step 1.2 检测到目标文件已存在时执行本步)
+
+### 1.6.1 判断当前 runtime 是否交互式
+
+你 (执行本 skill 的 LLM) 需要判断当前 agent runtime 是否能即时收到用户回复:
+
+**交互式 runtime** (可问用户):
+- Claude Code REPL — 用户在终端等回答
+- Cursor chat — 用户在 IDE chat 框等回答
+- 其他原生 chat 界面的 agent
+
+**非交互式 runtime** (不能问 / 不该问):
+- Codex CLI 任务执行模式 — 一次性命令, 跑完返回, 无人值守
+- cron 定时任务 — 完全后台
+- API / SDK 后台调用 — 程序在用, 没有人类用户
+- 桥接 chat (Discord/Slack bot 转发) — latency 高, 不建议问
+
+### 1.6.2 决策树
+
+1. **用户 trigger 带了 `mode=` 参数 / 等价自然语言意图** → 直接按参数走, 跳过询问 + 跳过 runtime 检测
+2. **没显式 mode + 交互式 runtime** → 询问用户三选一 (A/B/C), 等用户回答后再继续 Step 2
+3. **没显式 mode + 非交互式 runtime** → **默认走 A** (更新累积), 不询问
+
+### 1.6.3 询问模板 (交互式 runtime + 没显式 mode 时使用)
+
+向用户说一段大致如下的话, 然后**等用户回答, 不要开始 Step 2 抓取**:
+
+```
+检测到今天已经生成过 ~/Desktop/ai-news/YYYY-MM-DD.md (上次 HH:MM 生成)。
+
+要怎么处理?
+  A · 更新到最新累积版本 (推荐): 旧版自动归档到 .archive/, 新版包含当日全部抓取
+  B · 新建独立副本: 写到 -second.md, 不影响原文件
+  C · 跳过本次: 不抓取, 看上次的就行
+
+请回答 A/B/C, 或直接说想要的行为 (例如"更新" / "另存一份" / "别跑")。
+```
+
+### 1.6.4 三种模式的具体执行
+
+**A · 更新累积模式 (`mode=update`)**:
+1. 把现有 `YYYY-MM-DD.md` 移动到归档目录, 文件名带时间戳: `~/Desktop/ai-news/.archive/YYYY-MM-DD-HHMMSS.md` (例: `2026-05-24-080012.md`)
+2. 归档目录不存在则先创建 (`mkdir -p ~/Desktop/ai-news/.archive/` 或对应 Windows 命令)
+3. **Step 1.5 收集 baseline 时, 把这份归档旧版本也读进来** (同日已收录的内容必须去重)
+4. Step 2-9 正常执行, 写新版本到 `YYYY-MM-DD.md`
+5. Step 9 输出末尾追加一行: `**Updated at HH:MM** · +N new items since previous run (archived: .archive/YYYY-MM-DD-HHMMSS.md)`
+
+**B · 新建独立副本 (`mode=snapshot`)**:
+1. 检测 `YYYY-MM-DD-second.md` 是否存在, 不存在用这个; 存在用 `YYYY-MM-DD-third.md` (依次类推)
+2. Step 1.5 baseline 不读同日的其它副本 (各副本互相独立, 等同 v1.0.x 行为)
+3. Step 2-9 正常执行, 写到副本路径
+
+**C · 跳过 (`mode=skip`)**:
+1. 不执行任何抓取
+2. 直接回复用户: `今日日报已存在 <路径> (上次 HH:MM 生成), 本次未重新生成。如需更新可说"生成今日 AI 日报 mode=update"。`
+3. 任务结束
+
+---
+
 ## Step 1.5: Read recent 3-day digests for dedup baseline
 
-如果 `~/Desktop/ai-news/` (或自定义默认目录) 下存在过去 3 天的日报 (`YYYY-MM-DD.md` 命名), 用 Read 工具读取这些文件, 提取已出现的新闻**标题列表**作为去重 baseline (不需要读全文, 标题列表即可)。
+读取 baseline 的两个来源:
+
+**(a) 过去 3 天的日报**: 如果 `~/Desktop/ai-news/` (或自定义默认目录) 下存在过去 3 天的 `YYYY-MM-DD.md` 命名文件, Read 提取标题列表 (不需要读全文)。
+
+**(b) 同日旧版本** (仅当 Step 1.6 走 A 更新累积模式): Step 1.6.4 A.1 把当日旧版本归档到 `.archive/YYYY-MM-DD-HHMMSS.md`, **额外 Read 这份归档文件**提取标题, 一起合并进 baseline。这一步是为了让"更新累积"模式真正做到只列新增, 不重复 8 点版本已收录的条目。
+
+合并 (a) + (b) 得到完整 baseline 标题列表。
 
 Step 6.1 去重时, 把当天候选条目跟 baseline 对比, 标题语义相似度 ≥ 70% 的视为重复, 剔除。
 
-过去 3 天若没有日报文件, 跳过本步, 不影响后续流程。
+过去 3 天若没有日报文件且当日没有旧版本, 跳过本步, 不影响后续流程。
 
 ---
 
@@ -433,23 +516,45 @@ Tier 3 选用了:<两个源名>
 - URL 必须是真实抓到的,不要凭记忆构造
 - 标题必须忠于原文(英文翻译要准,不要发挥)
 - **每条新闻标题末尾必须标可信度 emoji** (🟢 / 🟡 / ⚠️, 见 Step 6.5.6); 🔴 应在 Step 6.5.5 剔除阶段处理而不是出现在日报
+- **同日重跑必须走 Step 1.6 决策树** (mode 参数 → 交互询问 → 非交互默认 A), 不要直接覆盖或直接 -second.md
+- **跨 runtime 兼容**: Claude Code / Cursor 等交互式 runtime 询问用户; Codex / cron / API 等非交互 runtime 默认 A (更新累积)
 
 ---
 
 ## 调用示例
 
-用户调用方式(任一):
+### 基础触发 (任一种说法都行)
 ```
 生成今日 AI 日报
-```
-```
+今天有什么 AI 新闻
 用 ai-news-digest 跑一下今天的资讯
 ```
-```
-今天有什么 AI 新闻
-```
+
+### 自定义输出路径
 ```
 ai-news-digest path=/path/to/custom.md
+生成今日 AI 日报 path=~/Documents/digests/today.md
 ```
 
-Claude 基于 description 自动识别意图并调用本 skill。
+### 同日重跑显式模式 (跳过 Step 1.6 询问)
+```
+生成今日 AI 日报 mode=update     # 更新累积 (覆盖旧版 + 归档)
+生成今日 AI 日报 mode=snapshot   # 新建副本 -second.md
+生成今日 AI 日报 mode=skip       # 跳过本次, 看上次的就行
+```
+
+### 等价自然语言 (无需记参数名)
+```
+生成今日 AI 日报, 不要覆盖之前的           # = mode=snapshot
+今天 AI 新闻, 合并到现有日报里             # = mode=update
+ai-news-digest, 看看上次的就行             # = mode=skip
+```
+
+### cron / 自动化调用 (非交互场景)
+非交互式 runtime 调用本 skill 时, 同日重跑会自动走 mode=update (Step 1.6 默认 A)。如果想要别的行为, 必须在 trigger 里显式带 `mode=` 参数:
+```bash
+# cron 每天早晚各跑一次, 用 update 模式累积
+@daily echo "生成今日 AI 日报 mode=update" | claude-code
+```
+
+Claude 基于 description 自动识别意图 + 解析参数 + 调用本 skill。
