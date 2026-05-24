@@ -39,6 +39,17 @@ WebSearch 的二手报道可能有 3 类污染:
 - "更新到最新" / "合并今天新增" / "拿最新版本" → 等价 `mode=update`
 - "看看上次的就行" / "别跑" / "我先不抓" → 等价 `mode=skip`
 
+**`region=<地区>`**: 网络环境, 决定抓取源清单
+
+- `region=intl` (默认, 别名: `international` / `global` / `海外`): 抓全部 Tier 1+2+3 源 (原版行为)
+- `region=cn` (别名: `china` / `国内` / `大陆`): **跳过中国大陆 GFW 阻断的国际源** (Anthropic / OpenAI WebFetch / HuggingFace / Google AI Blog), 只抓 HN + Latent Space + 全部 Tier 2 中文源 + TechCrunch / The Verge / One Useful Thing
+
+**自然语言推断**:
+- "我没 VPN" / "国内网络" / "中国大陆裸连" / "不要墙外源" / "用国内源就行" → 等价 `region=cn`
+- 默认 `region=intl` (海外用户 / 已开 VPN 环境)
+
+注: WebSearch (Step 5) 走 Anthropic backend, 不受 region 影响, 两个 region 都跑。WebFetch 受目标站本地可访问性影响, region=cn 跳过被墙源。
+
 ### 1.2 确定输出路径
 
 Default path: `~/Desktop/ai-news/YYYY-MM-DD.md`,使用今天的日期 (YYYY-MM-DD 格式)。
@@ -163,29 +174,42 @@ Step 6.1 去重时, 把当天候选条目跟 baseline 对比, 标题语义相似
 
 ---
 
-## Step 2: Fetch Tier 1 (English, must · all 5)
+## Step 2: Fetch Tier 1 (English official, region-aware)
 
-WebFetch each source。**不同源用不同 prompt, 不要套统一模板**:
+WebFetch each source。**不同源用不同 prompt, 不要套统一模板**。**按 Step 1.1 解析的 region 跳过被墙源**。
+
+### 两个 region 都跑 (国际 + 国内裸连都可访问):
 
 1. **Hacker News Front Page** · https://news.ycombinator.com/
    - Prompt: `提取首页 top 30 stories 里 AI 相关的 (Claude/GPT/Gemini/LLM/Agent/RAG/MCP/embedding/foundation model/AGI/Anthropic/OpenAI/DeepSeek/Qwen/HuggingFace/diffusion/tokenizer/fine-tuning/reasoning model 等关键词), 每条返回 标题/URL/分数/comments 数/1 句要点`
 
-2. **Anthropic News** · https://www.anthropic.com/news
-   - Prompt: `提取最新 5 篇 announcement, 每条返回 标题/URL/发布日期/1 句核心要点`
-
-3. **OpenAI 动态** · ⚠️ openai.com/news/ 直接 WebFetch 会 403 → **改用 WebSearch** 关键词:`OpenAI announcement 2026 latest` 或 `"OpenAI" news this week`(在 Step 5 一并跑)
-
 4. **Latent Space** · https://www.latent.space/feed (RSS, 主页 WebFetch 抓不到列表)
    - Prompt: `提取 RSS feed 最新 3 篇文章, 每条返回 标题/URL/发布日期/1 句要点`
 
+### 仅 region=intl 跑 (region=cn 跳过, 转靠 Step 5 WebSearch 补信号):
+
+2. **Anthropic News** · https://www.anthropic.com/news
+   - Prompt: `提取最新 5 篇 announcement, 每条返回 标题/URL/发布日期/1 句核心要点`
+   - **region=cn 跳过** (中国大陆 GFW 阻断)
+
+3. **OpenAI 动态** · ⚠️ openai.com/news/ 直接 WebFetch 会 403 → **两个 region 都改用 WebSearch** (在 Step 5 一并跑)。region=cn 不额外跳过 (本来就用 WebSearch)
+
 5. **HuggingFace Blog** · https://huggingface.co/blog
    - Prompt: `提取最新 5 篇 blog post, 每条返回 标题/URL/发布日期/1 句要点`
+   - **region=cn 跳过** (中国大陆 GFW 阻断); WebSearch 在 Step 5.1 有 "HuggingFace top releases this week" 配套, 仍能拿一手信号
+
+### 总结
+
+- **region=intl**: 5 个英文源都跑 (HN + Anthropic + OpenAI* + Latent Space + HuggingFace) — *OpenAI 走 WebSearch
+- **region=cn**: 只跑 HN + Latent Space + OpenAI* (WebSearch), 跳过 Anthropic / HuggingFace WebFetch
 
 ---
 
-## Step 3: Fetch Tier 2 (Chinese, must · all 3)
+## Step 3: Fetch Tier 2 (Chinese, must · all 9)
 
-WebFetch, 每个中文源单独写 prompt (不要套统一模板):
+WebFetch, 每个中文源单独写 prompt (不要套统一模板)。**全部 9 个源国内可访问 + 反爬不严 + 真实编辑团队 (无 SEO 聚合站), 两个 region 都跑**。
+
+### AI 一手报道 (4 个):
 
 - **量子位** · https://www.qbitai.com/
   - Prompt: `提取首页今天最新的 5-10 条 AI 资讯文章, 每条返回 标题/URL/发布时间/1 句核心要点`
@@ -193,25 +217,51 @@ WebFetch, 每个中文源单独写 prompt (不要套统一模板):
 - **机器之心** · https://www.jiqizhixin.com/
   - Prompt: `提取首页今天最新的 5-10 条 AI 资讯, 每条返回 标题/URL/发布时间/1 句核心要点`
 
+- **智东西** · https://zhidx.com/
+  - Prompt: `提取首页今天最新的 5-10 条 AI / 自动驾驶 / 机器人 / 大模型相关资讯, 每条返回 标题/URL/发布时间/1 句核心要点`
+
+- **雷峰网 AI 频道** · https://www.leiphone.com/category/ai
+  - Prompt: `提取页面今天最新的 5-10 条 AI 资讯 (含学术论文解读 + 行业深度), 每条返回 标题/URL/发布时间/1 句核心要点`
+
+### 技术深度 (1 个):
+
+- **InfoQ 中国 AI 频道** · https://www.infoq.cn/topic/AI
+  - Prompt: `提取页面上今天最新的 5-10 条 AI / Agent / LLM 相关技术深度文章, 每条返回 标题/URL/发布时间/1 句核心要点`
+
+### 商业财经科技 (4 个, AI 占比高):
+
 - **36 氪 AI 频道** · https://36kr.com/information/AI/
   - Prompt: `提取首页今天最新的 5-10 条 AI 类资讯, 每条返回 标题/URL/发布时间/1 句核心要点`
 
+- **钛媒体** · https://www.tmtpost.com/
+  - Prompt: `提取首页今天最新的 5-10 条 AI / 大模型 / Edge AI 相关资讯 (含 AGI 专栏 / Edge AI Daily 早报), 每条返回 标题/URL/发布时间/1 句核心要点`
+
+- **品玩** · https://www.pingwest.com/
+  - Prompt: `提取首页今天最新的 5-10 条 AI / 科技 / 商业资讯里 AI 相关的, 每条返回 标题/URL/发布时间/1 句核心要点`
+
+- **虎嗅前沿科技频道** · https://www.huxiu.com/channel/105.html
+  - Prompt: `提取页面上今天最新的 5-10 条 AI / 大模型 / 科技公司动态相关文章, 每条返回 标题/URL/发布时间/1 句核心要点`
+
+注: 9 个源全部经实测 (2026-05 验证), WebFetch 能拿到首页列表 + 不需要登录 + 反爬不严, 且都是真实编辑团队 (排除了 AI 工具集 / 极客公园 等 SEO 聚合站或反爬强的源)。
+
 ---
 
-## Step 4: Fetch Tier 3 (rotation pool · pick 2 of 4)
+## Step 4: Fetch Tier 3 (rotation pool · pick 2)
 
-根据 Tier 1/2 抓到的内容判断今天的热点方向,从下面 4 个里**挑 2 个最相关的**抓 (轮换池, 用通用模板即可):
+根据 Tier 1/2 抓到的内容判断今天的热点方向, 从下面候选里**挑 2 个最相关的**抓 (用通用模板)。**按 region 过滤可用候选**:
 
-| 源 | URL | 何时该选 |
-|---|---|---|
-| Google AI Blog | https://blog.google/technology/ai/ | Tier 1 出现 Google/DeepMind 相关消息时 |
-| TechCrunch AI | https://techcrunch.com/category/artificial-intelligence/ | 出现融资 / 商业 / 产品发布消息时 |
-| The Verge AI | https://www.theverge.com/ai-artificial-intelligence | 出现主流媒体级别热点时 |
-| One Useful Thing | https://www.oneusefulthing.org/ | 出现应用层 / 思想 / 评估方法时 |
+| 源 | URL | 何时该选 | Region |
+|---|---|---|---|
+| Google AI Blog | https://blog.google/technology/ai/ | Tier 1 出现 Google/DeepMind 相关消息时 | **intl only** (cn 跳过, 被墙) |
+| TechCrunch AI | https://techcrunch.com/category/artificial-intelligence/ | 出现融资 / 商业 / 产品发布消息时 | 两个 region |
+| The Verge AI | https://www.theverge.com/ai-artificial-intelligence | 出现主流媒体级别热点时 | 两个 region |
+| One Useful Thing | https://www.oneusefulthing.org/ | 出现应用层 / 思想 / 评估方法时 | 两个 region |
 
 通用 WebFetch prompt: `提取页面上最新的 5-10 条 AI 相关内容, 每条返回 标题/URL/发布时间/1 句核心要点`
 
-**保底规则**:如果完全没有明显热点方向,默认选 `Google AI Blog` + `TechCrunch AI`(覆盖商业模型 + 融资动态)。
+**保底规则** (完全没明显热点时):
+- **region=intl**: 默认选 `Google AI Blog` + `TechCrunch AI` (覆盖商业模型 + 融资)
+- **region=cn**: 默认选 `TechCrunch AI` + `The Verge AI` (Google AI Blog 被墙, 跳过)
 
 ⚠️ **注意**:Reddit 域名(www.reddit.com)被 Claude Code WebFetch 硬屏蔽,**不能直接抓**。当天若主题涉及开源/本地模型,在 Step 5 加 `r/LocalLLaMA top posts` 类关键词替代。
 
@@ -364,29 +414,35 @@ WebFetch, 每个中文源单独写 prompt (不要套统一模板):
 
 ## Step 6.7 · Fail-safe threshold check
 
-**如果 Tier 1 (英文官方源) 成功抓取的源 < 2 个, 整个任务 abort**, 写入最简错误报告并退出, 不要继续到 Step 7-9。
+按 region 不同, 阈值不同:
 
-错误报告格式:
+- **region=intl**: Tier 1 (5 个英文官方源) 成功 < 2 个 → abort
+- **region=cn**: Tier 1 (HN + Latent Space, 仅 2 个) 全失败 + Tier 2 中文 (9 个) 成功 < 4 个 → abort
+
+满足 abort 条件, 写入最简错误报告并退出, 不要继续到 Step 7-9:
 
 ```markdown
 # AI 资讯日报 · YYYY-MM-DD (生成失败)
 
-> Tier 1 抓取失败 (成功源 < 2),
-> 为避免输出全中文的"全球 AI 日报"误导用户, 任务终止。
+> Tier 1 抓取大量失败 [+ Tier 2 不足],
+> 为避免输出劣质日报误导用户, 任务终止。
 
 **失败源**:
-- [源名] · 原因:[404 / timeout / robots / 其他]
+- [源名] · 原因:[404 / timeout / robots / GFW 阻断 / 其他]
 - ...
 
-**成功源**(本来应该用上但因 Tier 1 不足放弃):
-- [Tier 2 / Tier 3 源列表]
+**成功源** (本来应该用上但单独不足以支撑):
+- [源列表]
 
-**建议**: 检查网络 / 各源 URL 是否变化 / Anthropic WebFetch 是否正常, 稍后重试。
+**建议**:
+- 检查网络 / 各源 URL 是否变化 / 你的 agent runtime fetch 工具能否访问被墙源
+- 如果你在中国大陆 + 用非 Claude Code 的 agent (Cursor / Codex 等本地直连 fetch), 试试 `region=cn` 显式切换跳过被墙源
+- 稍后重试
 ```
 
 写入路径同 Step 1 (`~/Desktop/ai-news/YYYY-MM-DD.md` 或 `path=` 指定)。
 
-**设计原则**: Tier 1 是这个 skill 的事实锚, Tier 1 失守 → 输出全中文的"全球 AI 日报"会误导用户, 宁可任务失败也不出劣质日报。
+**设计原则**: Tier 1 是这个 skill 的事实锚 (国际权威源)。region=intl 的 Tier 1 失守 → 输出全中文日报会误导; region=cn 的 Tier 1 本来就只有 HN/Latent Space 两个, 失守 + 中文不足 → 同样应该 abort 不出劣质日报。
 
 ---
 
@@ -518,6 +574,8 @@ Tier 3 选用了:<两个源名>
 - **每条新闻标题末尾必须标可信度 emoji** (🟢 / 🟡 / ⚠️, 见 Step 6.5.6); 🔴 应在 Step 6.5.5 剔除阶段处理而不是出现在日报
 - **同日重跑必须走 Step 1.6 决策树** (mode 参数 → 交互询问 → 非交互默认 A), 不要直接覆盖或直接 -second.md
 - **跨 runtime 兼容**: Claude Code / Cursor 等交互式 runtime 询问用户; Codex / cron / API 等非交互 runtime 默认 A (更新累积)
+- **region 参数必须被 Step 2/4/6.7 尊重**: region=cn 时严格跳过 Anthropic / HuggingFace WebFetch / Google AI Blog, 不要"试试看"
+- **9 个 Tier 2 中文源必抓 (两个 region 都跑)**, 单源失败容忍 (记录到失败小节), 但成功 < 4 个 + region=cn → 触发 Step 6.7 abort
 
 ---
 
@@ -543,11 +601,19 @@ ai-news-digest path=/path/to/custom.md
 生成今日 AI 日报 mode=skip       # 跳过本次, 看上次的就行
 ```
 
+### Region 参数 (中国大陆 / 海外)
+```
+生成今日 AI 日报 region=cn       # 跳过 Anthropic/HuggingFace/Google 等被墙源, 靠 HN+Latent Space+9 个中文源
+生成今日 AI 日报 region=intl     # 默认, 全 Tier 1+2+3 跑
+```
+
 ### 等价自然语言 (无需记参数名)
 ```
 生成今日 AI 日报, 不要覆盖之前的           # = mode=snapshot
 今天 AI 新闻, 合并到现有日报里             # = mode=update
 ai-news-digest, 看看上次的就行             # = mode=skip
+生成今日 AI 日报, 我没开 VPN              # = region=cn
+今天的 AI 新闻, 国内网络                  # = region=cn
 ```
 
 ### cron / 自动化调用 (非交互场景)

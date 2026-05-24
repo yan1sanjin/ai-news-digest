@@ -113,6 +113,21 @@ ai-news-digest path=/path/to/custom.md
 ai-news-digest, 看看上次的就行       # 等价 mode=skip
 ```
 
+### Region (中国大陆 vs 海外网络)
+
+skill 抓取的英文源里有 4 个 (Anthropic / OpenAI / HuggingFace / Google AI Blog) 被中国大陆 GFW 阻断。如果你的 agent 用本地直连 fetch (Cursor / Codex 等不走 Anthropic backend 的 agent), 国内裸连会大量失败。
+
+显式带 `region=` 切换:
+
+```
+生成今日 AI 日报 region=cn      # 跳过被墙源, 靠 HN + Latent Space + 9 个中文源
+生成今日 AI 日报 region=intl    # 默认, 全 Tier 1+2+3 (海外 / 已开 VPN)
+```
+
+或用自然语言: `生成今日 AI 日报, 我没开 VPN` / `用国内源就行` 都等价 region=cn。
+
+**Claude Code 用户一般不用 region=cn** — Claude Code 的 WebFetch 走 Anthropic backend (US 服务器), 不受用户本地网络影响, 默认 region=intl 即可。只有用其他 agent (Cursor / Codex 等本地 fetch) 在国内裸连才需要切换。
+
 ### 输出路径
 
 - macOS / Linux: `~/Desktop/ai-news/YYYY-MM-DD.md`
@@ -171,6 +186,7 @@ ai-news-digest, 看看上次的就行       # 等价 mode=skip
 - **Fail-safe 阈值**: Tier 1 < 2 个源成功直接 abort, 避免输出"全中文的全球 AI 日报"这种劣质结果
 - **跨 runtime**: 同一份 SKILL.md 在 Claude Code / Cursor / Codex / OpenClaw / Gemini CLI 都能用
 - **同日重跑智能处理**: 交互式 agent 问用户 (A 更新累积 / B 新建副本 / C 跳过), 非交互 agent 默认更新累积, 旧版本自动归档不丢
+- **中国大陆裸连支持** (v1.2.0): `region=cn` 跳过 4 个被墙源 (Anthropic / OpenAI / HuggingFace / Google AI Blog), 全靠 HN + Latent Space + **9 个权威中文源** (量子位 / 机器之心 / 智东西 / 雷峰网 AI / InfoQ / 36 氪 / 钛媒体 / 品玩 / 虎嗅前沿科技) + TechCrunch + The Verge, 国内裸连用户也能跑出体面日报。9 个中文源全部经过实测筛选 — 真实编辑团队优先, 拒绝 SEO 聚合站
 
 ---
 
@@ -181,7 +197,8 @@ ai-news-digest, 看看上次的就行       # 等价 mode=skip
   - macOS / Linux: `~/Desktop/ai-news/YYYY-MM-DD.md`
   - Windows: `%USERPROFILE%\Desktop\ai-news\YYYY-MM-DD.md`
 - **时区**: 运行机器本地时区
-- **抓取源**: 5 个英文 Tier 1 + 3 个中文 Tier 2 + 2 个 Tier 3 轮换
+- **抓取源** (region=intl): 5 个英文 Tier 1 + 9 个中文 Tier 2 + 2 个 Tier 3 轮换 ≈ 16 个源
+- **抓取源** (region=cn): 跳过 4 个被墙源, 转用 2 个英文 + 9 个中文 + 2 个 Tier 3 ≈ 13 个源
 - **输出条数**: 10-15 条精选 + 3-5 个趋势主题
 
 修改默认: 直接改 `SKILL.md` 对应字段 (Step 1 路径 / Step 2-3 源列表 / Step 6 输出条数)。SKILL.md 里 Unix / Windows 两套命令并列, 你的 agent 会根据当前 OS 选合适的。
